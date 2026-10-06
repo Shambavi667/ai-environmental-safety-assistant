@@ -6,6 +6,11 @@ import streamlit.components.v1 as components
 from ultralytics import YOLO
 from streamlit_webrtc import webrtc_streamer
 
+
+# =========================================================
+# PAGE SETTINGS
+# =========================================================
+
 st.set_page_config(
     page_title="Deaf-Blind Safety AI",
     page_icon="🛡️",
@@ -17,7 +22,7 @@ st.caption("Live Safety Monitoring Prototype")
 
 
 # =========================================================
-# MODEL
+# YOLO MODEL
 # =========================================================
 
 @st.cache_resource
@@ -41,8 +46,6 @@ state = {
     "approaching": False,
     "pattern": "• •"
 }
-
-previous_areas = {}
 
 
 # =========================================================
@@ -69,8 +72,10 @@ def calculate_risk(label, area_ratio, approaching):
 
     if area_ratio > 0.25:
         score += 25
+
     elif area_ratio > 0.12:
         score += 12
+
     elif area_ratio > 0.05:
         score += 5
 
@@ -80,26 +85,38 @@ def calculate_risk(label, area_ratio, approaching):
     return min(int(score), 100)
 
 
+# =========================================================
+# SAFETY LEVEL
+# =========================================================
+
 def get_level(score):
 
     if score >= 85:
         return "CRITICAL"
+
     elif score >= 65:
         return "HIGH"
+
     elif score >= 35:
         return "MEDIUM"
 
     return "LOW"
 
 
+# =========================================================
+# VIBRATION PATTERN
+# =========================================================
+
 def get_pattern(level):
 
-    return {
+    patterns = {
         "LOW": "• •",
         "MEDIUM": "● ● •",
         "HIGH": "● ● ● ●",
         "CRITICAL": "████████"
-    }[level]
+    }
+
+    return patterns[level]
 
 
 # =========================================================
@@ -150,6 +167,7 @@ def video_frame_callback(frame):
 
     frame_area = h * w
 
+    # YOLO prediction
     results = model.predict(
         small,
         conf=0.45,
@@ -165,6 +183,7 @@ def video_frame_callback(frame):
     highest_label = "None"
     highest_approaching = False
 
+    # Detect objects
     if result.boxes is not None and len(result.boxes) > 0:
 
         boxes = result.boxes.xyxy.cpu().numpy()
@@ -178,10 +197,10 @@ def video_frame_callback(frame):
 
             label = names[class_id]
 
-            width = max(0, x2 - x1)
-            height = max(0, y2 - y1)
+            box_width = max(0, x2 - x1)
+            box_height = max(0, y2 - y1)
 
-            area = width * height
+            area = box_width * box_height
 
             area_ratio = area / frame_area
 
@@ -199,10 +218,12 @@ def video_frame_callback(frame):
                 highest_label = label
                 highest_approaching = approaching
 
+    # Safety level
     level = get_level(highest_score)
 
     pattern = get_pattern(level)
 
+    # Update state
     with lock:
 
         state["label"] = highest_label
@@ -211,8 +232,10 @@ def video_frame_callback(frame):
         state["approaching"] = highest_approaching
         state["pattern"] = pattern
 
+    # Draw YOLO boxes
     annotated = result.plot()
 
+    # Alert message
     if level == "CRITICAL":
 
         message = "CRITICAL DANGER"
@@ -229,6 +252,7 @@ def video_frame_callback(frame):
 
         message = "LOW RISK"
 
+    # Alert panel
     cv2.rectangle(
         annotated,
         (8, 8),
@@ -237,6 +261,7 @@ def video_frame_callback(frame):
         -1
     )
 
+    # Alert
     cv2.putText(
         annotated,
         message,
@@ -247,6 +272,7 @@ def video_frame_callback(frame):
         2
     )
 
+    # Object
     cv2.putText(
         annotated,
         f"Object: {highest_label}",
@@ -257,6 +283,7 @@ def video_frame_callback(frame):
         2
     )
 
+    # Danger score
     cv2.putText(
         annotated,
         f"Danger Score: {highest_score}/100",
@@ -267,6 +294,7 @@ def video_frame_callback(frame):
         2
     )
 
+    # Vibration pattern
     cv2.putText(
         annotated,
         f"Vibration: {pattern}",
@@ -304,7 +332,7 @@ webrtc_streamer(
 
 
 # =========================================================
-# GPS VOICE WALKING NAVIGATION
+# GPS NAVIGATION
 # =========================================================
 
 st.divider()
@@ -312,8 +340,7 @@ st.divider()
 st.header("🗺️ Voice Walking Navigation")
 
 st.write(
-    "Enter your destination and use your phone GPS "
-    "to start walking navigation."
+    "Enter your destination and start GPS walking navigation."
 )
 
 destination = st.text_input(
@@ -323,37 +350,27 @@ destination = st.text_input(
 
 
 # =========================================================
-# GPS JAVASCRIPT
+# GPS HTML + JAVASCRIPT
 # =========================================================
 
-safe_destination = (
-    destination
-    .replace("\\", "\\\\")
-    .replace("'", "\\'")
-    .replace("\n", " ")
-    .replace("\r", " ")
-)
-
-
-gps_html = f"""
+gps_html = """
 <!DOCTYPE html>
 
 <html>
 
 <head>
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
 
-body {{
+body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 10px;
-}}
+}
 
-button {{
+button {
     width: 100%;
     padding: 16px;
     font-size: 17px;
@@ -361,15 +378,15 @@ button {{
     border: none;
     border-radius: 12px;
     cursor: pointer;
-}}
+}
 
-#status {{
+#status {
     margin-top: 14px;
     padding: 12px;
     border-radius: 10px;
     font-size: 15px;
     line-height: 1.5;
-}}
+}
 
 </style>
 
@@ -385,14 +402,15 @@ button {{
 GPS navigation not started.
 </div>
 
+
 <script>
 
-const destination = '{safe_destination}';
+const destination = "__DESTINATION__";
 
 
-function speak(message) {{
+function speak(message) {
 
-    if ("speechSynthesis" in window) {{
+    if ("speechSynthesis" in window) {
 
         window.speechSynthesis.cancel();
 
@@ -404,21 +422,19 @@ function speak(message) {{
         speech.volume = 1.0;
 
         window.speechSynthesis.speak(speech);
-    }}
-}}
+    }
+}
 
 
-function setStatus(message) {{
+function setStatus(message) {
 
-    document.getElementById(
-        "status"
-    ).innerText = message;
-}}
+    document.getElementById("status").innerText = message;
+}
 
 
-function startGPS() {{
+function startGPS() {
 
-    if (!destination.trim()) {{
+    if (!destination.trim()) {
 
         setStatus(
             "Please enter a destination first."
@@ -429,10 +445,10 @@ function startGPS() {{
         );
 
         return;
-    }}
+    }
 
 
-    if (!navigator.geolocation) {{
+    if (!navigator.geolocation) {
 
         setStatus(
             "GPS is not supported by this browser."
@@ -443,7 +459,7 @@ function startGPS() {{
         );
 
         return;
-    }}
+    }
 
 
     setStatus(
@@ -457,7 +473,7 @@ function startGPS() {{
 
     navigator.geolocation.getCurrentPosition(
 
-        function(position) {{
+        function(position) {
 
             const latitude =
                 position.coords.latitude;
@@ -467,14 +483,12 @@ function startGPS() {{
 
 
             setStatus(
-                "GPS location found. " +
-                "Opening walking navigation..."
+                "GPS location found. Opening walking navigation..."
             );
 
 
             speak(
-                "Your location was found. " +
-                "Opening walking navigation."
+                "Your location was found. Opening walking navigation."
             );
 
 
@@ -491,14 +505,14 @@ function startGPS() {{
 
             setTimeout(
 
-                function() {{
+                function() {
 
                     window.open(
                         mapsURL,
                         "_blank"
                     );
 
-                }},
+                },
 
                 1200
             );
@@ -506,55 +520,48 @@ function startGPS() {{
         },
 
 
-        function(error) {{
+        function(error) {
 
             let message =
                 "Unable to get your GPS location.";
 
 
-            if (error.code === 1) {{
+            if (error.code === 1) {
 
                 message =
-                    "Location permission was denied. " +
-                    "Please allow location access " +
-                    "in your browser.";
-            }}
+                    "Location permission was denied. Please allow location access in your browser.";
+            }
 
 
-            else if (error.code === 2) {{
+            else if (error.code === 2) {
 
                 message =
-                    "Your GPS location is unavailable. " +
-                    "Please turn on location services.";
-            }}
+                    "Your GPS location is unavailable. Please turn on location services.";
+            }
 
 
-            else if (error.code === 3) {{
+            else if (error.code === 3) {
 
                 message =
-                    "GPS request timed out. " +
-                    "Please try again.";
-            }}
+                    "GPS request timed out. Please try again.";
+            }
 
 
             setStatus(message);
 
             speak(message);
 
-        }},
+        },
 
 
-        {{
-
+        {
             enableHighAccuracy: true,
-
             timeout: 15000,
-
             maximumAge: 0
-        }}
+        }
 
     );
-}}
+}
 
 </script>
 
@@ -564,6 +571,25 @@ function startGPS() {{
 """
 
 
+# =========================================================
+# INSERT DESTINATION SAFELY
+# =========================================================
+
+safe_destination = (
+    destination
+    .replace("\\", "\\\\")
+    .replace('"', '\\"')
+    .replace("\n", " ")
+    .replace("\r", " ")
+)
+
+gps_html = gps_html.replace(
+    "__DESTINATION__",
+    safe_destination
+)
+
+
+# Display GPS component
 components.html(
     gps_html,
     height=230,
@@ -572,7 +598,7 @@ components.html(
 
 
 # =========================================================
-# NAVIGATION INFORMATION
+# INFORMATION
 # =========================================================
 
 st.info(
@@ -584,6 +610,5 @@ st.info(
 
 st.caption(
     "The AI camera provides environmental obstacle awareness. "
-    "Google Maps provides the walking route and "
-    "turn-by-turn navigation."
+    "Google Maps provides walking route and turn-by-turn navigation."
 )
