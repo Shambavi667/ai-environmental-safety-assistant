@@ -1,9 +1,16 @@
+```python
 import av
 import cv2
 import threading
 import streamlit as st
+import streamlit.components.v1 as components
 from ultralytics import YOLO
 from streamlit_webrtc import webrtc_streamer
+
+
+# =========================================================
+# PAGE SETTINGS
+# =========================================================
 
 st.set_page_config(
     page_title="Deaf-Blind Safety AI",
@@ -85,8 +92,10 @@ def get_level(score):
 
     if score >= 85:
         return "CRITICAL"
+
     elif score >= 65:
         return "HIGH"
+
     elif score >= 35:
         return "MEDIUM"
 
@@ -120,7 +129,7 @@ def video_frame_callback(frame):
 
     frame_count += 1
 
-    # Process every 3rd frame for smoother video
+    # Process every 3rd frame
     if frame_count % 3 != 0 and last_annotated is not None:
 
         return av.VideoFrame.from_ndarray(
@@ -129,7 +138,7 @@ def video_frame_callback(frame):
         )
 
     # -----------------------------------------------------
-    # Resize frame for faster processing
+    # RESIZE FRAME
     # -----------------------------------------------------
 
     original_h, original_w = img.shape[:2]
@@ -149,6 +158,7 @@ def video_frame_callback(frame):
         )
 
     else:
+
         small = img.copy()
 
     h, w = small.shape[:2]
@@ -260,6 +270,7 @@ def video_frame_callback(frame):
         message = "LOW RISK"
 
     # Information box
+
     cv2.rectangle(
         annotated,
         (8, 8),
@@ -269,6 +280,7 @@ def video_frame_callback(frame):
     )
 
     # Risk
+
     cv2.putText(
         annotated,
         message,
@@ -280,6 +292,7 @@ def video_frame_callback(frame):
     )
 
     # Object
+
     cv2.putText(
         annotated,
         f"Object: {highest_label}",
@@ -291,6 +304,7 @@ def video_frame_callback(frame):
     )
 
     # Danger score
+
     cv2.putText(
         annotated,
         f"Danger Score: {highest_score}/100",
@@ -302,6 +316,7 @@ def video_frame_callback(frame):
     )
 
     # Vibration pattern
+
     cv2.putText(
         annotated,
         f"Vibration: {pattern}",
@@ -339,7 +354,7 @@ webrtc_streamer(
 
 
 # =========================================================
-# NAVIGATION
+# GPS VOICE WALKING NAVIGATION
 # =========================================================
 
 st.divider()
@@ -347,11 +362,309 @@ st.divider()
 st.header("🗺️ Voice Walking Navigation")
 
 st.write(
-    "Use the AI camera for obstacle awareness. "
-    "GPS navigation will be connected separately."
+    "Enter a destination and use your phone GPS "
+    "to start walking navigation."
 )
 
-st.info(
-    "GPS navigation module will be added after "
-    "the main Streamlit application is deployed."
+destination = st.text_input(
+    "🎯 Enter destination",
+    placeholder="Example: Ranipet Railway Station"
 )
+
+
+# ---------------------------------------------------------
+# HTML / JAVASCRIPT GPS COMPONENT
+# ---------------------------------------------------------
+
+safe_destination = destination.replace(
+    "\\",
+    "\\\\"
+).replace(
+    "'",
+    "\\'"
+).replace(
+    "\n",
+    " "
+).replace(
+    "\r",
+    " "
+)
+
+
+gps_html = f"""
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<style>
+
+body {{
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 10px;
+}}
+
+button {{
+    width: 100%;
+    padding: 16px;
+    font-size: 17px;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+}}
+
+#status {{
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 15px;
+    line-height: 1.5;
+}}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<button onclick="startGPS()">
+
+📍 START GPS VOICE NAVIGATION
+
+</button>
+
+
+<div id="status">
+
+GPS navigation not started.
+
+</div>
+
+
+<script>
+
+
+const destination = '{safe_destination}';
+
+
+function speak(message) {{
+
+    if ("speechSynthesis" in window) {{
+
+        window.speechSynthesis.cancel();
+
+        const speech =
+            new SpeechSynthesisUtterance(message);
+
+        speech.rate = 0.9;
+        speech.pitch = 1.0;
+        speech.volume = 1.0;
+
+        window.speechSynthesis.speak(speech);
+
+    }}
+
+}}
+
+
+function setStatus(message) {{
+
+    document.getElementById(
+        "status"
+    ).innerText = message;
+
+}}
+
+
+function startGPS() {{
+
+    if (!destination.trim()) {{
+
+        setStatus(
+            "⚠️ Please enter a destination first."
+        );
+
+        speak(
+            "Please enter a destination first."
+        );
+
+        return;
+
+    }}
+
+
+    if (!navigator.geolocation) {{
+
+        setStatus(
+            "❌ GPS is not supported by this browser."
+        );
+
+        speak(
+            "GPS is not supported by this browser."
+        );
+
+        return;
+
+    }}
+
+
+    setStatus(
+        "📍 Getting your current GPS location..."
+    );
+
+    speak(
+        "Getting your current GPS location."
+    );
+
+
+    navigator.geolocation.getCurrentPosition(
+
+        function(position) {{
+
+            const latitude =
+                position.coords.latitude;
+
+            const longitude =
+                position.coords.longitude;
+
+
+            setStatus(
+                "✅ GPS location found. " +
+                "Opening walking navigation..."
+            );
+
+
+            speak(
+                "Your location was found. " +
+                "Opening walking navigation."
+            );
+
+
+            const mapsURL =
+                "https://www.google.com/maps/dir/?api=1" +
+                "&origin=" +
+                latitude +
+                "," +
+                longitude +
+                "&destination=" +
+                encodeURIComponent(destination) +
+                "&travelmode=walking";
+
+
+            setTimeout(
+
+                function() {{
+
+                    window.open(
+                        mapsURL,
+                        "_blank"
+                    );
+
+                }},
+
+                1200
+
+            );
+
+        },
+
+
+        function(error) {{
+
+            let message =
+                "Unable to get your GPS location.";
+
+
+            if (error.code === 1) {{
+
+                message =
+                    "Location permission was denied. " +
+                    "Please allow location access " +
+                    "in your browser.";
+
+            }}
+
+
+            else if (error.code === 2) {{
+
+                message =
+                    "Your GPS location is unavailable. " +
+                    "Please turn on location services.";
+
+            }}
+
+
+            else if (error.code === 3) {{
+
+                message =
+                    "GPS request timed out. " +
+                    "Please try again.";
+
+            }}
+
+
+            setStatus(
+                "❌ " + message
+            );
+
+
+            speak(message);
+
+        }},
+
+
+        {{
+
+            enableHighAccuracy: true,
+
+            timeout: 15000,
+
+            maximumAge: 0
+
+        }}
+
+    );
+
+}}
+
+
+</script>
+
+
+</body>
+
+</html>
+"""
+
+
+components.html(
+    gps_html,
+    height=230,
+    scrolling=False
+)
+
+
+# =========================================================
+# NAVIGATION INFORMATION
+# =========================================================
+
+st.info(
+    "📱 On your phone: enter a destination, "
+    "tap START GPS VOICE NAVIGATION, "
+    "allow location permission, and walking navigation "
+    "will open in Google Maps."
+)
+
+st.caption(
+    "The AI camera provides environmental obstacle awareness. "
+    "Google Maps provides the walking route and turn-by-turn navigation."
+)
+```
