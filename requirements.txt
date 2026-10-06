@@ -3,4 +3,4 @@ ultralytics==8.4.173
 av==17.1.0
 streamlit-webrtc==0.78.1
 numpy==2.2.6
-opencv-python-headless==4.10.0.84
+opencv-python-headless
