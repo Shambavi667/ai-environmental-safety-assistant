@@ -1,4 +1,3 @@
-```python
 import av
 import cv2
 import threading
@@ -6,11 +5,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 from ultralytics import YOLO
 from streamlit_webrtc import webrtc_streamer
-
-
-# =========================================================
-# PAGE SETTINGS
-# =========================================================
 
 st.set_page_config(
     page_title="Deaf-Blind Safety AI",
@@ -73,7 +67,6 @@ def calculate_risk(label, area_ratio, approaching):
 
     score = base.get(label, 5)
 
-    # Larger object = approximate closeness
     if area_ratio > 0.25:
         score += 25
     elif area_ratio > 0.12:
@@ -81,7 +74,6 @@ def calculate_risk(label, area_ratio, approaching):
     elif area_ratio > 0.05:
         score += 5
 
-    # Additional risk if approaching detection is enabled
     if approaching:
         score += 30
 
@@ -92,10 +84,8 @@ def get_level(score):
 
     if score >= 85:
         return "CRITICAL"
-
     elif score >= 65:
         return "HIGH"
-
     elif score >= 35:
         return "MEDIUM"
 
@@ -129,17 +119,12 @@ def video_frame_callback(frame):
 
     frame_count += 1
 
-    # Process every 3rd frame
     if frame_count % 3 != 0 and last_annotated is not None:
 
         return av.VideoFrame.from_ndarray(
             last_annotated,
             format="bgr24"
         )
-
-    # -----------------------------------------------------
-    # RESIZE FRAME
-    # -----------------------------------------------------
 
     original_h, original_w = img.shape[:2]
 
@@ -165,10 +150,6 @@ def video_frame_callback(frame):
 
     frame_area = h * w
 
-    # -----------------------------------------------------
-    # YOLO DETECTION
-    # -----------------------------------------------------
-
     results = model.predict(
         small,
         conf=0.45,
@@ -183,10 +164,6 @@ def video_frame_callback(frame):
     highest_score = 0
     highest_label = "None"
     highest_approaching = False
-
-    # -----------------------------------------------------
-    # PROCESS DETECTIONS
-    # -----------------------------------------------------
 
     if result.boxes is not None and len(result.boxes) > 0:
 
@@ -208,7 +185,6 @@ def video_frame_callback(frame):
 
             area_ratio = area / frame_area
 
-            # Approach detection can be added later
             approaching = False
 
             score = calculate_risk(
@@ -223,17 +199,9 @@ def video_frame_callback(frame):
                 highest_label = label
                 highest_approaching = approaching
 
-    # -----------------------------------------------------
-    # RISK LEVEL
-    # -----------------------------------------------------
-
     level = get_level(highest_score)
 
     pattern = get_pattern(level)
-
-    # -----------------------------------------------------
-    # UPDATE SHARED STATE
-    # -----------------------------------------------------
 
     with lock:
 
@@ -243,15 +211,7 @@ def video_frame_callback(frame):
         state["approaching"] = highest_approaching
         state["pattern"] = pattern
 
-    # -----------------------------------------------------
-    # DRAW YOLO DETECTIONS
-    # -----------------------------------------------------
-
     annotated = result.plot()
-
-    # -----------------------------------------------------
-    # DISPLAY WARNING
-    # -----------------------------------------------------
 
     if level == "CRITICAL":
 
@@ -269,8 +229,6 @@ def video_frame_callback(frame):
 
         message = "LOW RISK"
 
-    # Information box
-
     cv2.rectangle(
         annotated,
         (8, 8),
@@ -278,8 +236,6 @@ def video_frame_callback(frame):
         (0, 0, 0),
         -1
     )
-
-    # Risk
 
     cv2.putText(
         annotated,
@@ -291,8 +247,6 @@ def video_frame_callback(frame):
         2
     )
 
-    # Object
-
     cv2.putText(
         annotated,
         f"Object: {highest_label}",
@@ -303,8 +257,6 @@ def video_frame_callback(frame):
         2
     )
 
-    # Danger score
-
     cv2.putText(
         annotated,
         f"Danger Score: {highest_score}/100",
@@ -314,8 +266,6 @@ def video_frame_callback(frame):
         (255, 255, 255),
         2
     )
-
-    # Vibration pattern
 
     cv2.putText(
         annotated,
@@ -362,7 +312,7 @@ st.divider()
 st.header("🗺️ Voice Walking Navigation")
 
 st.write(
-    "Enter a destination and use your phone GPS "
+    "Enter your destination and use your phone GPS "
     "to start walking navigation."
 )
 
@@ -372,22 +322,16 @@ destination = st.text_input(
 )
 
 
-# ---------------------------------------------------------
-# HTML / JAVASCRIPT GPS COMPONENT
-# ---------------------------------------------------------
+# =========================================================
+# GPS JAVASCRIPT
+# =========================================================
 
-safe_destination = destination.replace(
-    "\\",
-    "\\\\"
-).replace(
-    "'",
-    "\\'"
-).replace(
-    "\n",
-    " "
-).replace(
-    "\r",
-    " "
+safe_destination = (
+    destination
+    .replace("\\", "\\\\")
+    .replace("'", "\\'")
+    .replace("\n", " ")
+    .replace("\r", " ")
 )
 
 
@@ -431,26 +375,17 @@ button {{
 
 </head>
 
-
 <body>
 
-
 <button onclick="startGPS()">
-
 📍 START GPS VOICE NAVIGATION
-
 </button>
 
-
 <div id="status">
-
 GPS navigation not started.
-
 </div>
 
-
 <script>
-
 
 const destination = '{safe_destination}';
 
@@ -469,9 +404,7 @@ function speak(message) {{
         speech.volume = 1.0;
 
         window.speechSynthesis.speak(speech);
-
     }}
-
 }}
 
 
@@ -480,7 +413,6 @@ function setStatus(message) {{
     document.getElementById(
         "status"
     ).innerText = message;
-
 }}
 
 
@@ -489,7 +421,7 @@ function startGPS() {{
     if (!destination.trim()) {{
 
         setStatus(
-            "⚠️ Please enter a destination first."
+            "Please enter a destination first."
         );
 
         speak(
@@ -497,14 +429,13 @@ function startGPS() {{
         );
 
         return;
-
     }}
 
 
     if (!navigator.geolocation) {{
 
         setStatus(
-            "❌ GPS is not supported by this browser."
+            "GPS is not supported by this browser."
         );
 
         speak(
@@ -512,12 +443,11 @@ function startGPS() {{
         );
 
         return;
-
     }}
 
 
     setStatus(
-        "📍 Getting your current GPS location..."
+        "Getting your current GPS location..."
     );
 
     speak(
@@ -537,7 +467,7 @@ function startGPS() {{
 
 
             setStatus(
-                "✅ GPS location found. " +
+                "GPS location found. " +
                 "Opening walking navigation..."
             );
 
@@ -571,7 +501,6 @@ function startGPS() {{
                 }},
 
                 1200
-
             );
 
         },
@@ -589,7 +518,6 @@ function startGPS() {{
                     "Location permission was denied. " +
                     "Please allow location access " +
                     "in your browser.";
-
             }}
 
 
@@ -598,7 +526,6 @@ function startGPS() {{
                 message =
                     "Your GPS location is unavailable. " +
                     "Please turn on location services.";
-
             }}
 
 
@@ -607,14 +534,10 @@ function startGPS() {{
                 message =
                     "GPS request timed out. " +
                     "Please try again.";
-
             }}
 
 
-            setStatus(
-                "❌ " + message
-            );
-
+            setStatus(message);
 
             speak(message);
 
@@ -628,16 +551,12 @@ function startGPS() {{
             timeout: 15000,
 
             maximumAge: 0
-
         }}
 
     );
-
 }}
 
-
 </script>
-
 
 </body>
 
@@ -665,6 +584,6 @@ st.info(
 
 st.caption(
     "The AI camera provides environmental obstacle awareness. "
-    "Google Maps provides the walking route and turn-by-turn navigation."
+    "Google Maps provides the walking route and "
+    "turn-by-turn navigation."
 )
-```
